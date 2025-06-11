@@ -8,7 +8,8 @@ def ip_to_range(ip_str: str) -> tuple[int, int]:
     Converts a CIDR IP address string into a tuple representing the integer range.
     This is a port of the `IP2Range` function from `src-efficuts/cutio.c`.
     """
-    match = re.match(r'(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})', ip_str)
+    match = re.match(
+        r'(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})', ip_str)
     if not match:
         raise ValueError(f"Invalid IP address format: {ip_str}")
 
@@ -31,26 +32,26 @@ def parse_rule(rule_str: str, priority: int) -> 'Rule':
     This is a port of the `loadrule` function from `src-efficuts/cutio.c`.
     """
     parts = rule_str.strip().split('\t')
-    
+
     # Source IP
     src_ip_str = parts[0][1:]  # remove @
     src_ip_low, src_ip_high = ip_to_range(src_ip_str)
-    
+
     # Destination IP
     dest_ip_str = parts[1]
     dest_ip_low, dest_ip_high = ip_to_range(dest_ip_str)
-    
+
     # Source Port
     src_port_low, src_port_high = [int(p) for p in parts[2].split(' : ')]
-    
+
     # Destination Port
     dest_port_low, dest_port_high = [int(p) for p in parts[3].split(' : ')]
-    
+
     # Protocol
     proto_parts = parts[4].split('/')
     proto_val = int(proto_parts[0], 16)
     proto_mask = int(proto_parts[1], 16)
-    
+
     if proto_mask == 0xFF:
         proto_low, proto_high = proto_val, proto_val
     else:
@@ -76,6 +77,8 @@ def load_rules(filename: str) -> List['Rule']:
             if line.strip():
                 rules.append(parse_rule(line, i))
     return rules
+
+
 def is_present(node_boundary: 'Rule', rule: 'Rule') -> bool:
     """
     Checks if a given rule intersects with a node's boundary.
@@ -107,6 +110,8 @@ def do_rules_intersect(rule1: 'Rule', rule2: 'Rule') -> bool:
         if r1_high < r2_low or r1_low > r2_high:
             return False
     return True
+
+
 # Define memory constants based on the C implementation's assumptions for 64-bit architecture
 PTR_SIZE = 8  # 8 bytes for a pointer
 LEAF_NODE_SIZE = 8  # Simplified size for a leaf node structure
@@ -115,6 +120,7 @@ INTERNAL_NODE_SIZE = 48  # Simplified size for an internal node structure
 
 class TreeStat:
     """A data class to hold statistics for a single tree."""
+
     def __init__(self, tree_id: int, num_rules: int):
         self.id = tree_id
         self.num_rules = num_rules
@@ -168,30 +174,33 @@ def print_stats(trees: List['Node'], overall_depth: int):
         ruleptr_memory = PTR_SIZE * stat.total_rule_size
         # Memory for children pointers in internal nodes
         array_memory = PTR_SIZE * stat.total_array_size
-        
+
         # Memory for the node structures themselves
         # Memory for the node structures themselves
         # TCAM nodes are counted separately, so standard internal nodes are what's left.
-        internal_node_count = stat.node_count - stat.leaf_node_count - stat.tcam_node_count
+        internal_node_count = stat.node_count - \
+            stat.leaf_node_count - stat.tcam_node_count
         standard_leaf_count = stat.leaf_node_count
-        
+
         stat.standard_node_memory = (
             (LEAF_NODE_SIZE * standard_leaf_count) +
             (INTERNAL_NODE_SIZE * internal_node_count) +
             array_memory +
             ruleptr_memory
         )
-        
+
         # Calculate TCAM memory separately
         stat.tcam_node_memory = TCAMNode.MAT_SIZE * stat.tcam_node_count
-        
+
         stat.total_memory = stat.standard_node_memory + stat.tcam_node_memory
 
         print(f"  Tree {i}:")
-        print(f"    Standard Node Memory: {stat.standard_node_memory / 1024:.2f} KB")
-        print(f"    TCAM Node Memory:     {stat.tcam_node_memory / 1024:.2f} KB")
+        print(
+            f"    Standard Node Memory: {stat.standard_node_memory / 1024:.2f} KB")
+        print(
+            f"    TCAM Node Memory:     {stat.tcam_node_memory / 1024:.2f} KB")
         print(f"    Total Memory:         {stat.total_memory / 1024:.2f} KB")
-        
+
         overall_total_mem += stat.total_memory
         overall_std_mem += stat.standard_node_memory
         overall_tcam_mem += stat.tcam_node_memory
@@ -290,7 +299,6 @@ def check_tree_correctness(trees: List['Node'], rules: List['Rule']):
             current_packet[dim] = point
             yield from generate_test_points(rule, dim + 1, current_packet)
 
-
     for i, rule in enumerate(rules):
         if (i + 1) % 100 == 0:
             print(f"  Checking rule {i+1}/{len(rules)}...")
@@ -312,6 +320,8 @@ def check_tree_correctness(trees: List['Node'], rules: List['Rule']):
             )
 
     print("Tree correctness verification passed!")
+
+
 def search_tree(root: 'Node', packet: List[int]) -> 'Rule':
     """
     Traverses the CramCuts tree to find the highest-priority matching rule for a packet.
@@ -337,12 +347,12 @@ def search_tree(root: 'Node', packet: List[int]) -> 'Rule':
                 if not (child.boundary.ranges[i][0] <= packet[i] <= child.boundary.ranges[i][1]):
                     in_boundary = False
                     break
-            
+
             if in_boundary:
                 current_node = child
                 found_child = True
                 break
-        
+
         if not found_child:
             # This case means the packet doesn't fit into any more-specific child.
             # We must therefore search the rules contained at the current level.
@@ -361,7 +371,7 @@ def search_tree(root: 'Node', packet: List[int]) -> 'Rule':
             if not (rule.ranges[i][0] <= packet[i] <= rule.ranges[i][1]):
                 matches = False
                 break
-        
+
         if matches:
             # Higher priority value is considered better
             if rule.priority > highest_priority:

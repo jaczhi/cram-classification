@@ -11,6 +11,8 @@ class Rule:
         return f"Rule(priority={self.priority}, ranges={self.ranges})"
 
 # Represents a node in the classification tree
+
+
 class Node:
     def __init__(self, depth: int, rules: List[Rule], boundary: Rule, children: List['Node']):
         self.depth = depth
@@ -22,6 +24,8 @@ class Node:
         return f"Node(depth={self.depth}, rules={len(self.rules)}, children={len(self.children)})"
 
 # Represents a TCAM node in the classification tree
+
+
 class TCAMNode(Node):
     # Represents the memory cost of a TCAM entry, mirroring the MAT_SIZE
     # constant from the original C implementation's fine-grained model.

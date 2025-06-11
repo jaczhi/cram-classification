@@ -30,3 +30,87 @@ This approach ensures that TCAM nodes are used surgically: only on dense cluster
 
 The CramCuts executable works similarly to the EffiCuts executable, building a "tree" and then reporting metrics.
 Note that since we don't have actual TCAM hardware, the TCAM datastructure is simulated using a Python class.
+
+## Running
+
+Show the help:
+
+```bash
+# cwd should be "cram-classification" i.e., repo root
+python3 -m cramcuts.cramcuts --help
+# or
+python -m cramcuts.cramcuts --help
+```
+
+Example run:
+
+```bash
+python3 -m cramcuts.cramcuts reproducibility/big-acl-list
+
+python3 -m cramcuts.cramcuts reproducibility/big-acl-list --no-cramcuts
+```
+
+## Command-Line Options
+
+The following command-line options are available for the `cramcuts.py` script:
+
+### Efficuts Parameters
+
+*   **`rules_file`**
+    *   **Description:** Path to the input ruleset file. (Mandatory)
+
+*   **`-b, --bucket-size <int>`**
+    *   **Default:** 16
+    *   **Description:** Max rules in a leaf node before splitting.
+
+*   **`-s, --space-factor <float>`**
+    *   **Default:** 0.8
+    *   **Description:** A float to control rule replication.
+
+*   **`--no-compression`**
+    *   **Default:** False
+    *   **Description:** Disable node compression heuristics (currently a placeholder).
+
+*   **`-g, --binning-strategy <0|1|2>`**
+    *   **Default:** 2
+    *   **Description:** Rule binning strategy (0: None, 1: Separable Trees, 2: Static).
+
+*   **`--no-tree-merging`**
+    *   **Default:** False
+    *   **Description:** Disable selective tree merging.
+
+*   **`--no-equi-dense`**
+    *   **Default:** False
+    *   **Description:** Disable equi-dense cuts in favor of equi-spaced cuts (currently a placeholder).
+
+*   **`-f, --max-cuts <int>`**
+    *   **Default:** 16
+    *   **Description:** Max number of cuts in a standard equi-dense node.
+
+*   **`-n, --largeness-threshold <float>`**
+    *   **Default:** 0.9
+    *   **Description:** "Large rule" threshold in non-IP dimensions.
+
+*   **`-i, --ip-largeness-threshold <float>`**
+    *   **Default:** 0.9
+    *   **Description:** "Large rule" threshold in IP dimensions.
+
+### CramCuts Parameters
+
+*   **`--no-cramcuts`**
+    *   **Default:** False
+    *   **Description:** Disable the CramCuts heuristic (run in pure Efficuts mode).
+
+*   **`--tcam-max-cuts <int>`**
+    *   **Default:** 256
+    *   **Description:** Max number of cuts allowed in a TCAMNode.
+
+*   **`--tcam-wide-rule-threshold <float>`**
+    *   **Default:** 20.0
+    *   **Description:** Percentage of "wide" rules below which a TCAM node will be created.
+
+### Output file
+
+*   **`--simulator-file <str>`**
+    *   **Default:** `cramcuts-tree.json`
+    *   **Description:** Path to save the simulator JSON file.
