@@ -1,0 +1,60 @@
+Loading rules from reproducibility/big-acl-list...
+Loaded 9622 rules.
+Binning and merging rules...
+Created 3 rule sets for tree generation.
+
+--- Running in Efficuts Mode (TCAM Disabled) ---
+Building Efficuts-style trees...
+  Building tree 1/3 with 6802 rules...
+  Building tree 2/3 with 1976 rules...
+  Building tree 3/3 with 844 rules...
+Efficuts tree construction complete.
+
+Final Statistics (Efficuts Mode):
+Number of trees after merge: 3
+  Tree 0:
+    Standard Node Memory: 123.05 KB
+    TCAM Node Memory:     0.00 KB
+    Total Memory:         123.05 KB
+  Tree 1:
+    Standard Node Memory: 30.30 KB
+    TCAM Node Memory:     0.00 KB
+    Total Memory:         30.30 KB
+  Tree 2:
+    Standard Node Memory: 55.23 KB
+    TCAM Node Memory:     0.00 KB
+    Total Memory:         55.23 KB
+
+  Overall:
+    Standard Node Memory: 208.57 KB
+    TCAM Node Memory:     0.00 KB
+    Total Memory:         208.57 KB
+    Overall Depth: 14
+
+--- Running in CramCuts Mode (TCAM Enabled) ---
+Building CramCuts trees...
+  Building tree 1/3 with 6802 rules...
+  Building tree 2/3 with 1976 rules...
+  Building tree 3/3 with 844 rules...
+CramCuts tree construction complete.
+
+Final Statistics (CramCuts Mode):
+Number of trees after merge: 3
+  Tree 0:
+    Standard Node Memory: 118.90 KB
+    TCAM Node Memory:     66.00 KB
+    Total Memory:         184.90 KB
+  Tree 1:
+    Standard Node Memory: 23.11 KB
+    TCAM Node Memory:     19.00 KB
+    Total Memory:         42.11 KB
+  Tree 2:
+    Standard Node Memory: 44.58 KB
+    TCAM Node Memory:     0.00 KB
+    Total Memory:         44.58 KB
+
+  Overall:
+    Standard Node Memory: 186.59 KB
+    TCAM Node Memory:     85.00 KB
+    Total Memory:         271.59 KB
+    Overall Depth: 13
