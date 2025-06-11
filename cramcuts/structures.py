@@ -28,8 +28,10 @@ class TCAMNode(Node):
     # This value is a heuristic.
     MAT_SIZE = 1024
 
-    def __init__(self, depth: int, rules: List[Rule], boundary: Rule, children: List['Node']):
+    def __init__(self, depth: int, rules: List[Rule], boundary: Rule, children: List['Node'], cut_dim: int = -1, cut_points: List[int] = None):
         super().__init__(depth, rules, boundary, children)
+        self.cut_dim = cut_dim
+        self.cut_points = cut_points if cut_points is not None else []
 
     def __repr__(self) -> str:
-        return f"TCAMNode(depth={self.depth}, rules={len(self.rules)}, children={len(self.children)})"
+        return f"TCAMNode(depth={self.depth}, rules={len(self.rules)}, children={len(self.children)}, cut_dim={self.cut_dim})"

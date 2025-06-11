@@ -1,10 +1,11 @@
 import math
+import json
 from itertools import product
 from typing import List, Tuple
 
 from cramcuts.structures import Node, Rule, TCAMNode
 from cramcuts.utils import (check_tree_correctness, is_present, load_rules,
-                            print_stats, search_tree)
+                            print_stats, search_tree, PTR_SIZE)
 
 
 def bin_rules(rules: List[Rule]) -> List[List[Rule]]:
@@ -421,6 +422,42 @@ def _is_rule_wide(rule: Rule, dim: int) -> bool:
     return False
 
 
+def calc_tcam_cuts(node: 'Node', dim: int, max_cuts: int = 256) -> List[int]:
+    """
+    Calculates TCAM-friendly cut points for a given dimension. The goal is to
+    find "neat" boundaries that align with power-of-two increments, which helps
+    minimize the number of TCAM entries needed.
+    """
+    if not node.rules:
+        return []
+
+    low_bound, high_bound = node.boundary.ranges[dim]
+    points = set([low_bound, high_bound])
+
+    # Collect all start and end points from the rules
+    for rule in node.rules:
+        rule_low, rule_high = rule.ranges[dim]
+        if low_bound <= rule_low <= high_bound:
+            points.add(rule_low)
+        if low_bound <= rule_high <= high_bound:
+            points.add(rule_high)
+
+    sorted_points = sorted(list(points))
+
+    # If we have too many points, we need to select the best ones.
+    # A good heuristic is to prioritize points that are powers of two or
+    # create boundaries that are powers of two, as these are "neater" for TCAM.
+    if len(sorted_points) > max_cuts:
+        # Simplified selection: take a subset of the points.
+        # A more advanced version would score points based on the power-of-two heuristic.
+        step = len(sorted_points) // max_cuts
+        selected_points = sorted_points[::step]
+        if high_bound not in selected_points:
+            selected_points.append(high_bound)
+        return sorted(list(set(selected_points)))
+    
+    return sorted_points
+
 def _cut_node(node: Node, bucket_size: int) -> List[Node]:
     """
     A port of `CutNode` from `compressedcuts.c`. This performs the core cutting logic,
@@ -471,83 +508,73 @@ def _cut_node(node: Node, bucket_size: int) -> List[Node]:
 
     # 4. Return children that need further cutting, applying CramCuts heuristic
     nodes_to_push = []
-    WIDE_RULE_PERCENT_THRESHOLD = 20.0 # Heuristic threshold for TCAM decision
+    new_children = []
+    WIDE_RULE_PERCENT_THRESHOLD = 20.0  # Heuristic threshold for TCAM decision
 
-    for i in range(len(node.children)):
-        child = node.children[i]
-        if len(child.rules) > bucket_size:
-            # CramCuts Step 2: Identify "problematic" nodes
-            if _samerules(child, node):
-                # Problematic node found, apply CramCuts Step 3: The TCAM Decision
-                dim_to_check = dims_to_cut[0]
-                wide_rules_count = sum(1 for r in child.rules if _is_rule_wide(r, dim_to_check))
+    for child in node.children:
+        if len(child.rules) <= bucket_size:
+            new_children.append(child)
+            continue
+
+        # CramCuts Step 2: Identify "problematic" nodes
+        if _samerules(child, node):
+            # Problematic node found, apply CramCuts Step 3: The TCAM Decision
+            dim_to_check = dims_to_cut[0] if dims_to_cut else 0
+            wide_rules_count = sum(1 for r in child.rules if _is_rule_wide(r, dim_to_check))
+            percentage = (wide_rules_count * 100 / len(child.rules)) if child.rules else 0
+
+            if percentage < WIDE_RULE_PERCENT_THRESHOLD:
+                # Low percentage of wide rules: create a TCAMNode
+                tcam_dims_to_cut = calc_dimensions_to_cut(child)
+                if not tcam_dims_to_cut:
+                    new_children.append(child)  # Cannot cut further, treat as a leaf
+                    continue
                 
-                percentage = (wide_rules_count * 100 / len(child.rules)) if child.rules else 0
-                if percentage < WIDE_RULE_PERCENT_THRESHOLD:
-                    # Low percentage of wide rules: create a TCAMNode by re-cutting the child aggressively.
-                    # 1. Determine cuts for the TCAM node
-                    tcam_dims_to_cut = calc_dimensions_to_cut(child)
-                    if not tcam_dims_to_cut:
-                        # Cannot cut further, treat as a leaf by not adding to push list
-                        continue
+                tcam_dim = tcam_dims_to_cut[0]
+                cut_points = calc_tcam_cuts(child, tcam_dim)
 
-                    # Use a much higher cut limit for TCAM nodes
-                    tcam_num_cuts = calc_equi_spaced_cuts(child, tcam_dims_to_cut, max_cuts_per_dim=256)
-
-                    # 2. Generate children for the TCAM node
-                    tcam_children = []
-                    tcam_cut_counts = [1] * len(child.boundary.ranges)
-                    for j, dim in enumerate(tcam_dims_to_cut):
-                        tcam_cut_counts[dim] = tcam_num_cuts[j]
-
-                    tcam_offsets_product = product(*(range(c) for c in tcam_cut_counts))
-
-                    for offsets in tcam_offsets_product:
-                        child_ranges = []
-                        for k in range(len(child.boundary.ranges)):
-                            low, high = child.boundary.ranges[k]
-                            interval = (high - low + 1) // tcam_cut_counts[k] if tcam_cut_counts[k] > 0 else 0
-                            child_low = low + offsets[k] * interval
-                            child_high = low + (offsets[k] + 1) * interval - 1 if offsets[k] < tcam_cut_counts[k] - 1 else high
-                            child_ranges.append((child_low, child_high))
-
+                tcam_children = []
+                if len(cut_points) > 1:
+                    for i in range(len(cut_points) - 1):
+                        low, high = cut_points[i], cut_points[i+1]
+                        # Correct the boundary for the last child
+                        child_high = high - 1 if i < len(cut_points) - 2 else high
+                        if low > child_high: continue
+                        
+                        child_ranges = list(child.boundary.ranges)
+                        child_ranges[tcam_dim] = (low, child_high)
+                        
                         tcam_child_boundary = Rule(priority=-1, ranges=child_ranges)
-                        tcam_child_rules = [rule for rule in child.rules if is_present(tcam_child_boundary, rule)]
+                        tcam_child_rules = [r for r in child.rules if is_present(tcam_child_boundary, r)]
 
                         if tcam_child_rules:
-                            new_child_node = Node(
+                            tcam_children.append(Node(
                                 depth=child.depth + 1,
                                 rules=tcam_child_rules,
                                 boundary=tcam_child_boundary,
                                 children=[]
-                            )
-                            tcam_children.append(new_child_node)
-
-                    # 3. Create the TCAMNode with its new children
-                    tcam_node = TCAMNode(
-                        depth=child.depth,
-                        rules=child.rules,
-                        boundary=child.boundary,
-                        children=tcam_children
-                    )
-
-                    # 4. Replace the original child and handle further processing
-                    node.children[i] = tcam_node
-                    _node_merging(tcam_node) # Merge the new children
-
-                    # Add children of the new TCAM node to the worklist if they still need cutting
-                    for tcam_child in tcam_node.children:
-                        if len(tcam_child.rules) > bucket_size:
-                            # Avoid infinite loops by not re-evaluating nodes that didn't split
-                            if not _samerules(tcam_child, tcam_node):
-                                nodes_to_push.append(tcam_child)
-                else:
-                    # High percentage of wide rules: fall back to a standard node leaf
-                    # We do this by simply not adding the child to the worklist.
-                    pass
+                            ))
+                
+                tcam_node = TCAMNode(
+                    depth=child.depth, rules=child.rules, boundary=child.boundary,
+                    children=tcam_children, cut_dim=tcam_dim, cut_points=cut_points
+                )
+                
+                new_children.append(tcam_node)
+                _node_merging(tcam_node)
+                
+                for tcam_child in tcam_node.children:
+                    if len(tcam_child.rules) > bucket_size and not _samerules(tcam_child, tcam_node):
+                        nodes_to_push.append(tcam_child)
             else:
-                nodes_to_push.append(child)
-    
+                # High percentage of wide rules: fall back to a standard node leaf
+                new_children.append(child)
+        else:
+            # Not problematic, but needs more cutting
+            nodes_to_push.append(child)
+            new_children.append(child)
+
+    node.children = new_children
     return nodes_to_push
 
 
@@ -634,6 +661,47 @@ def create_cramcuts_tree(rules: List[Rule], bucket_size: int = 16, use_tcam_heur
     return root, final_max_depth
 
 
+def generate_json_representation(trees: List[Node], filename: str):
+    """
+    Generates a JSON file describing the nodes in the tree structure.
+    """
+    json_nodes = []
+    
+    # Define bit widths for each dimension
+    DIM_WIDTHS = {0: 32, 1: 32, 2: 16, 3: 16, 4: 8}
+
+    def _traverse_for_json(node: Node, tree_id: int, node_id_counter: dict):
+        node_info = {
+            "id": f"node_{tree_id}_{node_id_counter['count']}",
+            "step": node.depth - 1,
+        }
+        node_id_counter['count'] += 1
+
+        if isinstance(node, TCAMNode):
+            node_info.update({
+                "match": "ternary",
+                "entries": len(node.rules),
+                "key_size": DIM_WIDTHS.get(node.cut_dim, 0)
+            })
+            json_nodes.append(node_info)
+        elif node.children: # It's a standard internal node
+            node_info.update({
+                "match": "exact",
+                "method": "index",
+                "key_size": math.ceil(math.log2(len(node.children))) if len(node.children) > 1 else 1,
+                "data_size": PTR_SIZE
+            })
+            json_nodes.append(node_info)
+
+        for child in node.children:
+            _traverse_for_json(child, tree_id, node_id_counter)
+
+    for i, tree in enumerate(trees):
+        node_id_counter = {'count': 0}
+        _traverse_for_json(tree, i, node_id_counter)
+
+    with open(filename, 'w') as f:
+        json.dump(json_nodes, f, indent=2)
 
 
 if __name__ == '__main__':
@@ -677,6 +745,10 @@ if __name__ == '__main__':
     print("CramCuts tree construction complete.")
     print("\nFinal Statistics (CramCuts Mode):")
     print_stats(cramcuts_trees, cramcuts_depth)
+
+    print("\nGenerating JSON representation of the CramCuts tree...")
+    generate_json_representation(cramcuts_trees, "cramcuts-tree.json")
+    print("JSON file 'cramcuts-tree.json' created.")
 
     # print("\nVerifying CramCuts tree correctness...")
     # check_tree_correctness(cramcuts_trees, rules)
