@@ -1,5 +1,5 @@
 import re
-from typing import List
+from typing import List, Optional
 from cramcuts.structures import Node, Rule, TCAMNode
 
 
@@ -256,17 +256,17 @@ def check_tree_correctness(trees: List['Node'], rules: List['Rule']):
     """
     print("Verifying tree correctness...")
 
-    def search_trees(packet: List[int]) -> 'Rule':
+    def search_trees(packet: List[int]) -> Optional['Rule']:
         """Helper to search across all trees and return the best match."""
         best_match = None
         for tree in trees:
             match = search_tree(tree, packet)
             if match:
-                if best_match is None or match.priority < best_match.priority:
+                if best_match is None or match.priority > best_match.priority:
                     best_match = match
         return best_match
 
-    def linear_search(packet: List[int]) -> 'Rule':
+    def linear_search(packet: List[int]) -> Optional['Rule']:
         """Helper for linear search over all rules."""
         best_match = None
         for rule in rules:
@@ -276,7 +276,7 @@ def check_tree_correctness(trees: List['Node'], rules: List['Rule']):
                     matches = False
                     break
             if matches:
-                if best_match is None or rule.priority < best_match.priority:
+                if best_match is None or rule.priority > best_match.priority:
                     best_match = rule
         return best_match
 
@@ -322,7 +322,7 @@ def check_tree_correctness(trees: List['Node'], rules: List['Rule']):
     print("Tree correctness verification passed!")
 
 
-def search_tree(root: 'Node', packet: List[int]) -> 'Rule':
+def search_tree(root: 'Node', packet: List[int]) -> Optional['Rule']:
     """
     Traverses the CramCuts tree to find the highest-priority matching rule for a packet.
 
