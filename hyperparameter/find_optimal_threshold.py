@@ -2,13 +2,12 @@
 
 import subprocess
 import re
-import sys
 
 def run_main_with_threshold(threshold):
     """Run main.py with given threshold and extract depth and memory."""
     cmd = [
-        "python3", "main.py", 
-        "reproducibility/big-acl-list", 
+        "python3", "../main.py", 
+        "../reproducibility/big-acl-list", 
         "--tcam-wide-rule-threshold", str(threshold)
     ]
     

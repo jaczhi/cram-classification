@@ -2,13 +2,12 @@
 
 import subprocess
 import re
-import sys
 
 def run_main_with_thresholds(largeness_threshold, ip_largeness_threshold):
     """Run main.py with given thresholds and extract depth and memory."""
     cmd = [
-        "python3", "main.py", 
-        "reproducibility/big-acl-list", 
+        "python3", "../main.py", 
+        "../reproducibility/big-acl-list", 
         "--largeness-threshold", str(largeness_threshold),
         "--ip-largeness-threshold", str(ip_largeness_threshold)
     ]
