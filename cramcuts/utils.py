@@ -155,17 +155,11 @@ def _collect_stats_recursive(node: 'Node', stat: 'TreeStat', depth: int):
             _collect_stats_recursive(child, stat, depth + 1)
 
 
-def print_stats(trees: List['Node'], overall_depth: int):
+def get_stats(trees: List['Node']) -> List['TreeStat']:
     """
-    Calculates and prints statistics for a list of decision trees,
-    replicating the output of `PrintStats` from `cutio.c`.
+    Calculates statistics for a list of decision trees.
     """
-    print(f"Number of trees after merge: {len(trees)}")
-
-    overall_total_mem = 0
-    overall_std_mem = 0
-    overall_tcam_mem = 0
-
+    tree_stats = []
     for i, tree_root in enumerate(trees):
         stat = TreeStat(tree_id=i, num_rules=len(tree_root.rules))
         _collect_stats_recursive(tree_root, stat, 1)
@@ -175,7 +169,6 @@ def print_stats(trees: List['Node'], overall_depth: int):
         # Memory for children pointers in internal nodes
         array_memory = PTR_SIZE * stat.total_array_size
 
-        # Memory for the node structures themselves
         # Memory for the node structures themselves
         # TCAM nodes are counted separately, so standard internal nodes are what's left.
         internal_node_count = stat.node_count - \
@@ -193,8 +186,25 @@ def print_stats(trees: List['Node'], overall_depth: int):
         stat.tcam_node_memory = TCAMNode.MAT_SIZE * stat.tcam_node_count
 
         stat.total_memory = stat.standard_node_memory + stat.tcam_node_memory
+        tree_stats.append(stat)
+    return tree_stats
 
-        print(f"  Tree {i}:")
+
+def print_stats(trees: List['Node'], overall_depth: int):
+    """
+    Calculates and prints statistics for a list of decision trees,
+    replicating the output of `PrintStats` from `cutio.c`.
+    """
+    print(f"Number of trees after merge: {len(trees)}")
+
+    stats = get_stats(trees)
+
+    overall_total_mem = 0
+    overall_std_mem = 0
+    overall_tcam_mem = 0
+
+    for stat in stats:
+        print(f"  Tree {stat.id}:")
         print(
             f"    Standard Node Memory: {stat.standard_node_memory / 1024:.2f} KB")
         print(
